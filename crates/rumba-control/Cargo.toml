@@ -9,4 +9,9 @@ description = "Receiver-independent driver control, failsafe, robosim command br
 path = "src/lib.rs"
 
 [features]
-default = []
+default = ["robosim"]
+robosim = ["dep:control-core"]
+
+[dependencies]
+control-core = { package = "control-core", git = "https://github.com/ARandomNeko/robosim.git", rev = "310e6abd580e5b333639d49f2bb6f9d772a384ef", optional = true }
+libm = "0.2"
