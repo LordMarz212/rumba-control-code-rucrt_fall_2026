@@ -18,6 +18,8 @@ Implement the UART task so each received byte is passed to `RumbaFirmware::push_
 
 A standard iBUS channel frame contains channel values and checksum, not a universal RF-link-status flag. A receiver may continue outputting configured failsafe channel values after transmitter loss. Configure RF-loss failsafe values so enable is OFF and throttle is minimum if supported. The timeout remains a second layer, not a replacement. Test transmitter power-off, receiver power cycling, UART unplug, MCU reset, and watchdog behavior with motors physically disconnected.
 
+Do not assume an all-zero (`000`) channel value is a universal kill signal. This software rejects channel values outside its configured 750–2250 µs range and asks the controller to stop, but the receiver may instead stop sending frames, hold the last values, or keep sending its own configured fallback. Set and verify the exact receiver's RF-loss behavior separately; the desired fallback is enable OFF and throttle minimum.
+
 ## robosim integration
 
 The `robosim` feature supplies `RobosimControlPort` using the vendored `control-core` source at the revision documented in that crate's README. This keeps builds reproducible without access to robosim's private repository. The board layer implements `RobosimHardware` to return timestamped sensor `Input` data and schedule ESC, indicator, and debug outputs. The bridge inserts the `RobotOperator` into `Input`, calls `Controller::update`, and maps controller state and diagnostics to `RobotFeedback`. It keeps the controller's estimation and motor calculations in the vendored robosim core. Board startup, sensor bus drivers, receiver UART configuration, output scheduling, and watchdog remain board work.
