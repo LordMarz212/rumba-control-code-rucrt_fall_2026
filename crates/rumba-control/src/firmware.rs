@@ -48,6 +48,7 @@ impl RumbaFirmware {
                 state: crate::robot_interface::RobotState::Disarmed,
                 spin_rpm: 0.0,
                 phase_rad: 0.0,
+                spin_valid: false,
             },
         }
     }
@@ -115,13 +116,13 @@ mod tests {
         }
     }
 
-    fn ibus_frame() -> [u8; IBUS_FRAME_LEN] {
+    fn ibus_frame(enable: bool) -> [u8; IBUS_FRAME_LEN] {
         let mut bytes = [0u8; IBUS_FRAME_LEN];
         bytes[0] = 0x20;
         bytes[1] = 0x40;
         let mut channels = [1500u16; IBUS_CHANNELS];
         channels[2] = 1750; // default left-stick throttle
-        channels[4] = 2000; // default spin-enable switch
+        channels[4] = if enable { 2000 } else { 1000 }; // default spin-enable switch
         for (index, value) in channels.iter().enumerate() {
             let offset = 2 + index * 2;
             bytes[offset..offset + 2].copy_from_slice(&value.to_le_bytes());
@@ -135,11 +136,15 @@ mod tests {
     fn receiver_bytes_flow_to_robot_operator() {
         let mut firmware = RumbaFirmware::new(DriverConfig::default());
         let mut robot = FakeRobot::default();
-        for byte in ibus_frame() {
+        for byte in ibus_frame(false) {
             firmware.push_receiver_byte(byte, 10_000);
         }
-
-        let tick = firmware.tick(10_001, &mut robot).unwrap();
+        robot.feedback = RobotFeedback { state: RobotState::Disarmed, spin_rpm: 0.0, phase_rad: 0.25, spin_valid: true };
+        firmware.tick(10_001, &mut robot).unwrap();
+        for byte in ibus_frame(true) {
+            firmware.push_receiver_byte(byte, 10_002);
+        }
+        let tick = firmware.tick(10_003, &mut robot).unwrap();
         let command = robot.command.unwrap();
         assert!(command.enable);
         assert_eq!(command.target_rpm, 2250.0);
@@ -150,13 +155,17 @@ mod tests {
     #[test]
     fn io_error_immediately_drops_cached_receiver_input() {
         let mut firmware = RumbaFirmware::new(DriverConfig::default());
-        let mut robot = FakeRobot { feedback: RobotFeedback { state: RobotState::Running, spin_rpm: 1000.0, phase_rad: 0.5 }, ..FakeRobot::default() };
-        for byte in ibus_frame() {
+        let mut robot = FakeRobot { feedback: RobotFeedback { state: RobotState::Disarmed, spin_rpm: 0.0, phase_rad: 0.5, spin_valid: true }, ..FakeRobot::default() };
+        for byte in ibus_frame(false) {
             firmware.push_receiver_byte(byte, 10_000);
         }
-        // Establish controller feedback first so the mapper knows the robot is
-        // already spinning when the receiver UART error arrives.
         firmware.tick(10_001, &mut robot).unwrap();
+        for byte in ibus_frame(true) {
+            firmware.push_receiver_byte(byte, 10_002);
+        }
+        robot.feedback.state = RobotState::Running;
+        robot.feedback.spin_rpm = 1000.0;
+        firmware.tick(10_003, &mut robot).unwrap();
         firmware.receiver_io_error();
         let tick = firmware.tick(10_002, &mut robot).unwrap();
         assert_eq!(tick.controls.failsafe, crate::FailsafeState::Active(crate::FailsafeReason::NoFrame));
