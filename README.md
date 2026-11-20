@@ -33,7 +33,7 @@ robosim phase estimate + latched virtual front -> LedFaces -> SK9822 frames
 - **Firmware loop:** `RumbaFirmware` retains the last valid frame, feeds receiver bytes, requests safe output on UART errors/timeouts, and calls a `RobotControlPort` implementation every control tick.
 - **Driver mapping:** configurable channel assignments, stick inversion, throttle-to-RPM mapping, translation dead zone, and up to four optional LED-mode switch bindings.
 - **Failsafe:** frame timeout, malformed/missing/out-of-range data validation, stop latch, and a required toggle-off cycle after link loss.
-- **Robot interface:** `RobotControlPort` accepts `RobotOperator` and returns state, spin rate, validity, and phase. The default `robosim` feature provides `RobosimControlPort`, pinned to the robosim `control-core` revision used during integration. Board code implements `RobosimHardware` for sensor acquisition and ESC/indicator/debug output. No motion math is duplicated here.
+- **Robot interface:** `RobotControlPort` accepts `RobotOperator` and returns state, spin rate, validity, and phase. The default `robosim` feature provides `RobosimControlPort`, backed by the vendored robosim `control-core` source at a documented upstream commit. Board code implements `RobosimHardware` for sensor acquisition and ESC/indicator/debug output. No motion math is duplicated here.
 - **LEDs:** phase-to-virtual-front mapping, persistent directional marker layered above optional artwork, independent calibration for both faces, and SK9822 byte framing.
 
 ## Driver mapping
@@ -79,7 +79,7 @@ cargo test --workspace
 cargo check --workspace --no-default-features
 ```
 
-The core library is `no_std` and allocation-free. Tests use the host test harness.
+The control and Rumba libraries are `no_std` and allocation-free. Tests use the host test harness. `crates/control-core/README.md` records the upstream source commit and sync policy.
 
 ## Current integration boundary
 
