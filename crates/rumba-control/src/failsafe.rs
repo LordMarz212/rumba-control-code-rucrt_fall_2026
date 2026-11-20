@@ -11,6 +11,7 @@ pub enum FailsafeReason {
     InvalidChannelValue,
     InvalidConfiguration,
     InvalidControllerPhase,
+    VirtualFrontNotSet,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
