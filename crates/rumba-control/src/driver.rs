@@ -365,7 +365,15 @@ mod tests {
     }
 
     fn establish_front(mapper: &mut DriverMapper, phase_rad: f32) {
-        let off = frame([1500, 1500, 1500, 1500, 1000], 9_000);
+        let mut channels = [1500; MAX_CHANNELS];
+        channels[mapper.config.channels.enable] = 1000;
+        let required = mapper.config.channels.throttle
+            .max(mapper.config.channels.translation_x)
+            .max(mapper.config.channels.translation_y)
+            .max(mapper.config.channels.enable)
+            .max(mapper.config.auxiliary.led_switches.iter().flatten().map(|binding| binding.channel).max().unwrap_or(0))
+            + 1;
+        let off = ReceiverFrame { channels_us: channels, channel_count: required, received_at_us: 9_000 };
         let output = mapper.update(Some(&off), 9_001, stopped_feedback(phase_rad));
         assert_eq!(output.operator.reference_id, 1);
         assert!(!output.operator.enable);
@@ -489,8 +497,8 @@ mod tests {
         establish_front(&mut mapper, core::f32::consts::FRAC_PI_2);
         let forward = frame([1500, 1000, 1800, 1500, 2000], 10_000);
         let output = mapper.update(Some(&forward), 10_001, stopped_feedback(core::f32::consts::FRAC_PI_2));
-        assert!((output.operator.translation[0] - 1.0).abs() < 0.0001);
-        assert!(output.operator.translation[1].abs() < 0.0001);
+        assert!(output.operator.translation[0].abs() < 0.0001);
+        assert!((output.operator.translation[1] - 1.0).abs() < 0.0001);
     }
 
     #[test]
