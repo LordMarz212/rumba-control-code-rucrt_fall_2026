@@ -20,7 +20,7 @@ A standard iBUS channel frame contains channel values and checksum, not a univer
 
 ## robosim integration
 
-The `robosim` feature supplies `RobosimControlPort` using a revision-pinned `control-core` dependency. The board layer implements `RobosimHardware` to return timestamped sensor `Input` data and schedule ESC, indicator, and debug outputs. The bridge inserts the `RobotOperator` into `Input`, calls the existing `Controller::update`, and maps controller state and diagnostics to `RobotFeedback`. It keeps all estimation and motor calculations in robosim. Board startup, sensor bus drivers, receiver UART configuration, output scheduling, and watchdog remain board work.
+The `robosim` feature supplies `RobosimControlPort` using the vendored `control-core` source at the revision documented in that crate's README. This keeps builds reproducible without access to robosim's private repository. The board layer implements `RobosimHardware` to return timestamped sensor `Input` data and schedule ESC, indicator, and debug outputs. The bridge inserts the `RobotOperator` into `Input`, calls `Controller::update`, and maps controller state and diagnostics to `RobotFeedback`. It keeps the controller's estimation and motor calculations in the vendored robosim core. Board startup, sensor bus drivers, receiver UART configuration, output scheduling, and watchdog remain board work.
 
 The mapper needs feedback each loop:
 - `RobotState` from the controller output state;
