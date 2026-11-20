@@ -13,7 +13,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabihf
       - name: Test workspace
         run: cargo test --workspace
       - name: Check no_std library
         run: cargo check --workspace --no-default-features
+      - name: Check Teensy Cortex-M7 target
+        run: cargo check --workspace --target thumbv7em-none-eabihf
