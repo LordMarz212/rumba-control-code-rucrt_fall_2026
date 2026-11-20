@@ -1,0 +1,12 @@
+[package]
+name = "rumba-control"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Receiver-independent driver control, failsafe, robosim command bridge, and SK9822 LED rendering for Rumba"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = []
