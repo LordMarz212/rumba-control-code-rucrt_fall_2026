@@ -81,25 +81,8 @@ cargo check --workspace --no-default-features
 
 The control and Rumba libraries are `no_std` and allocation-free. Tests use the host test harness. `crates/control-core/README.md` records the upstream source commit and sync policy.
 
-## Functionality status
-
-This sheet describes the code on `main`. “Implemented” means the portable host-side control code is present; it does not mean the feature has been validated on the assembled robot.
-
-| Status | Functionality |
-|---|---|
-| Implemented | iBUS frame decoding and validation |
-| Implemented | Remappable throttle and translation channels |
-| Implemented | Spin control, controlled stop, receiver timeout, stop latch, and re-arm cycle |
-| Implemented | SK9822 frame encoding and configurable LED-mode switch mapping |
-| Implemented | Virtual-front capture while stopped, fixed reference while spinning, and translation in arena coordinates |
-| Implemented | Phase-based virtual-front rendering with independent calibration for each face |
-| Implemented | Host build/test commands and portable `no_std` control libraries (hardware verification remains pending) |
-| Not implemented | Board-specific Teensy startup, UART/SPI transport, ESC outputs, and watchdog integration |
-| Not implemented | Physical robot calibration and receiver/ESC failsafe bench testing |
-| Not implemented | Rutgers/sponsor artwork and animation assets |
-
 ## Current integration boundary
 
 This repository includes a portable control-loop library, not a flashable Teensy firmware image. The exact FlySky receiver variant, UART pins/baud, electrical signal level, Teensy board startup/HAL, LED SPI/DMA transport, ESC output implementation, and robosim firmware packaging still need hardware-specific integration and bench verification.
 
-See [hardware integration](docs/HARDWARE_INTEGRATION.md) and [driver controls](docs/DRIVER_CONTROLS.md).
+See [hardware integration](docs/HARDWARE_INTEGRATION.md), [driver controls](docs/DRIVER_CONTROLS.md), and the [exact hardware details request](docs/TEAM_HARDWARE_REQUEST.md) for Teensy bring-up.
