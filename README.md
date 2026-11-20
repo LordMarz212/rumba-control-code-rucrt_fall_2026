@@ -19,21 +19,22 @@ receiver::ibus -> ReceiverFrame
 DriverMapper -> RobotOperator + failsafe state
           |
           v
-robot_interface::RobotCommandSink
+firmware::RobotControlPort
           |
           v
 robosim control_core::Operator / Input -> existing movement controller
 
-robosim phase estimate -> leds::LedDisplay -> SK9822 frames -> both LED strips
+robosim phase estimate + latched virtual front -> LedFaces -> SK9822 frames
 ```
 
 ### What lives here
 
 - **Receiver decoding:** incremental iBUS frame parser; protocol is isolated so another serial protocol can be added without changing driver mapping.
-- **Driver mapping:** configurable channel assignments, stick inversion, throttle-to-RPM mapping, and translation dead zone.
+- **Firmware loop:** `RumbaFirmware` retains the last valid frame, feeds receiver bytes, requests safe output on UART errors/timeouts, and calls a `RobotControlPort` implementation every control tick.
+- **Driver mapping:** configurable channel assignments, stick inversion, throttle-to-RPM mapping, translation dead zone, and up to four optional LED-mode switch bindings.
 - **Failsafe:** frame timeout, malformed/missing/out-of-range data validation, stop latch, and a required toggle-off cycle after link loss.
-- **Robot interface:** a small `RobotOperator` contract mirroring the fields robosim already accepts. A firmware integration adapter copies it into `control_core::Operator`; no motion math is duplicated here.
-- **LEDs:** phase-to-virtual-front mapping, persistent directional marker layered above optional artwork, two-face mirroring, and SK9822 byte framing.
+- **Robot interface:** `RobotControlPort` accepts `RobotOperator` and returns state, spin rate, validity, and phase. The default `robosim` feature provides `RobosimControlPort`, backed by the vendored robosim `control-core` source at a documented upstream commit. Board code implements `RobosimHardware` for sensor acquisition and ESC/indicator/debug output. No motion math is duplicated here.
+- **LEDs:** phase-to-virtual-front mapping, persistent directional marker layered above optional artwork, independent calibration for both faces, and SK9822 byte framing.
 
 ## Driver mapping
 
@@ -48,6 +49,8 @@ Default channel indices use the common AETR order as a starting point; **verify 
 
 All indices are zero-based in `ChannelMap`. They are configuration, not assumptions baked into the decoder. Throttle maps 1000..2000 us to 0..max_rpm (default 3000). Translation maps 1000..2000 us to -1..1 with a configurable dead zone.
 
+Optional LED switches are configured separately in `DriverConfig::auxiliary`. Each binding selects a mode while that switch is ON; OFF returns to `VirtualFront` unless another mapped switch is ON. Unbound switches have no software effect. The default map binds none. If more than one mapped switch is ON, the last configured binding has priority. The mapper reports only a `LedMode` selection: the firmware's artwork provider can add or replace images without changing receiver parsing or drive mapping. Optional modes are reported only while feedback says the robot is spinning; `VirtualFront` is always the fallback.
+
 ## Stop and receiver-loss behavior
 
 The existing robosim controller distinguishes two commands:
@@ -61,7 +64,9 @@ Standard iBUS channel frames do not contain a universal, explicit RF-link-valid 
 
 ## LEDs
 
-The LED renderer takes the controller's predicted phase and maps it to a strip index using a configurable phase offset and direction. The directional marker is drawn **after** the optional background/animation, so graphics cannot cover it. Send the same rendered frame to the strip on each face. The phase-to-physical-index offset and direction must be calibrated on the assembled robot; this repo intentionally does not guess the mechanical orientation.
+The virtual front is captured while the enable switch is OFF and robosim reports a valid, stopped phase. The mapper sends that reference to robosim while disarmed, as required by the controller's stopped-alignment contract. Enabling is refused until alignment succeeds. The reference stays fixed while Rumba spins. Driver translation is rotated from the virtual-front frame into arena coordinates before passing it to the controller. LEDs show the front's position on the rotating body from `reference_heading_rad - predicted_phase_rad`. Use `LedFaces` with a separate `LedConfig` for each side so each phase offset and index direction can be calibrated independently. `LedArtworkProvider` owns replaceable logo/animation assets. The marker is drawn **after** optional artwork, so graphics cannot cover it; invalid phase fails dark rather than showing unmarked artwork. Physical phase mapping must be calibrated on the assembled robot.
+
+The currently described strip is a single row of pixels. It supports directional markers and one-dimensional color/pattern effects. A detailed 2D Rutgers logo or sponsor video needs additional radial rows or a matrix display; the artwork interface does not create pixels the hardware does not have.
 
 SK9822 uses clock + data and BGR pixel ordering. The renderer produces bytes; the board-specific SPI/DMA transport and power system are not included yet.
 
@@ -74,10 +79,10 @@ cargo test --workspace
 cargo check --workspace --no-default-features
 ```
 
-The core library is `no_std` and allocation-free. Tests use the host test harness.
+The control and Rumba libraries are `no_std` and allocation-free. Tests use the host test harness. `crates/control-core/README.md` records the upstream source commit and sync policy.
 
 ## Current integration boundary
 
-This repository is a **control-layer library**, not a flashable Teensy firmware image. The exact FlySky receiver variant, UART pins/baud, electrical signal level, Teensy board startup/HAL, LED SPI/DMA transport, ESC output implementation, and robosim firmware packaging still need hardware-specific integration and bench verification.
+This repository includes a portable control-loop library, not a flashable Teensy firmware image. The exact FlySky receiver variant, UART pins/baud, electrical signal level, Teensy board startup/HAL, LED SPI/DMA transport, ESC output implementation, and robosim firmware packaging still need hardware-specific integration and bench verification.
 
 See [hardware integration](docs/HARDWARE_INTEGRATION.md) and [driver controls](docs/DRIVER_CONTROLS.md).

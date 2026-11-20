@@ -7,11 +7,17 @@
 
 pub mod driver;
 pub mod failsafe;
+pub mod firmware;
 pub mod leds;
 pub mod receiver;
 pub mod robot_interface;
+#[cfg(feature = "robosim")]
+pub mod robosim_adapter;
 
-pub use driver::{ChannelMap, DriverConfig, DriverMapper, MappedDriverOutput};
+pub use driver::{AuxiliaryControlMap, ChannelMap, DriverConfig, DriverMapper, LedSwitchBinding, MappedDriverOutput, MAX_AUX_SWITCHES};
 pub use failsafe::{FailsafeConfig, FailsafeReason, FailsafeState};
+pub use firmware::{FirmwareTick, RobotControlPort, RumbaFirmware};
 pub use receiver::ReceiverFrame;
 pub use robot_interface::{RobotFeedback, RobotOperator, RobotState};
+#[cfg(feature = "robosim")]
+pub use robosim_adapter::{RobosimControlPort, RobosimHardware};

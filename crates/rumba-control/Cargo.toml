@@ -9,4 +9,9 @@ description = "Receiver-independent driver control, failsafe, robosim command br
 path = "src/lib.rs"
 
 [features]
-default = []
+default = ["robosim"]
+robosim = ["dep:control-core"]
+
+[dependencies]
+control-core = { path = "../control-core", optional = true }
+libm = "0.2"

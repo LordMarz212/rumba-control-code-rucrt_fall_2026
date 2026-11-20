@@ -71,6 +71,10 @@ pub struct RobotFeedback {
     pub state: RobotState,
     /// Measured spin rate converted to RPM, preserving sign.
     pub spin_rpm: f32,
+    /// Current estimated body phase in the arena frame, in radians.
+    pub phase_rad: f32,
+    /// True only when the controller has a valid measured spin estimate.
+    pub spin_valid: bool,
 }
 
 impl RobotFeedback {
@@ -81,8 +85,3 @@ impl RobotFeedback {
     }
 }
 
-/// Optional integration seam for firmware that owns the robosim controller.
-pub trait RobotCommandSink {
-    type Error;
-    fn apply_operator(&mut self, command: RobotOperator) -> Result<(), Self::Error>;
-}

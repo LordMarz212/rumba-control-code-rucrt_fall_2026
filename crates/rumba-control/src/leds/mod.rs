@@ -19,6 +19,16 @@ impl Rgb {
     }
 }
 
+/// Selectable LED content. The hardware renderer always overlays the virtual
+/// front marker, regardless of the selected background mode.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum LedMode {
+    #[default]
+    VirtualFront,
+    RutgersLogo,
+    SponsorLoop,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct LedConfig {
     /// Mechanical phase-to-LED alignment, calibrated on the assembled robot.
@@ -46,6 +56,12 @@ impl Default for LedConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LedFrame<const N: usize> {
     pub pixels: [Rgb; N],
+}
+
+/// Firmware-owned artwork renderer. Asset storage and animation timing stay
+/// outside the driver and receiver modules, making images easy to replace.
+pub trait LedArtworkProvider {
+    fn render<const N: usize>(&mut self, mode: LedMode, now_us: u64) -> [Rgb; N];
 }
 
 impl<const N: usize> LedFrame<N> {
@@ -79,6 +95,41 @@ pub struct LedDisplay<const N: usize> {
     config: LedConfig,
 }
 
+/// Independent renderers for the two physical faces. Each side can have a
+/// different LED count, mounting offset, and index direction.
+pub struct LedFaces<const FACE_A: usize, const FACE_B: usize> {
+    pub face_a: LedDisplay<FACE_A>,
+    pub face_b: LedDisplay<FACE_B>,
+}
+
+impl<const FACE_A: usize, const FACE_B: usize> LedFaces<FACE_A, FACE_B> {
+    pub const fn new(face_a: LedConfig, face_b: LedConfig) -> Self {
+        Self {
+            face_a: LedDisplay::new(face_a),
+            face_b: LedDisplay::new(face_b),
+        }
+    }
+
+    pub fn render(
+        &self,
+        predicted_body_phase_rad: f32,
+        virtual_front_heading_rad: f32,
+        mode: LedMode,
+        now_us: u64,
+        artwork: &mut impl LedArtworkProvider,
+    ) -> (LedFrame<FACE_A>, LedFrame<FACE_B>) {
+        let (face_a_art, face_b_art) = if mode == LedMode::VirtualFront {
+            ([Rgb::BLACK; FACE_A], [Rgb::BLACK; FACE_B])
+        } else {
+            (artwork.render::<FACE_A>(mode, now_us), artwork.render::<FACE_B>(mode, now_us))
+        };
+        (
+            self.face_a.render_virtual_front(predicted_body_phase_rad, virtual_front_heading_rad, &face_a_art),
+            self.face_b.render_virtual_front(predicted_body_phase_rad, virtual_front_heading_rad, &face_b_art),
+        )
+    }
+}
+
 impl<const N: usize> LedDisplay<N> {
     pub const fn new(config: LedConfig) -> Self {
         Self { config }
@@ -88,11 +139,16 @@ impl<const N: usize> LedDisplay<N> {
     /// Send the resulting identical frame to the strip on each face.
     pub fn render(&self, predicted_phase_rad: f32, artwork: &[Rgb; N]) -> LedFrame<N> {
         let mut frame = LedFrame { pixels: *artwork };
-        if N == 0 || !predicted_phase_rad.is_finite() {
+        if N == 0 {
             return frame;
         }
 
         let mut phase = predicted_phase_rad + self.config.phase_offset_rad;
+        if !phase.is_finite() {
+            // A decorative pattern without a trustworthy directional marker
+            // could mislead the driver, so fail dark instead.
+            return LedFrame::black();
+        }
         let tau = core::f32::consts::TAU;
         while phase < 0.0 {
             phase += tau;
@@ -116,8 +172,23 @@ impl<const N: usize> LedDisplay<N> {
         frame
     }
 
+    /// Place the marker for a fixed arena heading on the rotating body. The
+    /// face-specific offset and direction in `LedConfig` handle mounting.
+    pub fn render_virtual_front(
+        &self,
+        body_phase_rad: f32,
+        virtual_front_heading_rad: f32,
+        artwork: &[Rgb; N],
+    ) -> LedFrame<N> {
+        self.render(virtual_front_heading_rad - body_phase_rad, artwork)
+    }
+
     pub const fn brightness(&self) -> u8 {
-        self.config.global_brightness.min(31)
+        if self.config.global_brightness > 31 {
+            31
+        } else {
+            self.config.global_brightness
+        }
     }
 }
 
@@ -144,12 +215,46 @@ mod tests {
     }
 
     #[test]
+    fn face_calibration_can_differ_and_directional_marker_survives_artwork() {
+        struct SolidArtwork;
+        impl LedArtworkProvider for SolidArtwork {
+            fn render<const N: usize>(&mut self, _mode: LedMode, _now_us: u64) -> [Rgb; N] {
+                [Rgb::new(1, 2, 3); N]
+            }
+        }
+
+        let faces = LedFaces::<8, 8>::new(
+            LedConfig { marker_width: 1, ..LedConfig::default() },
+            LedConfig { marker_width: 1, phase_offset_rad: core::f32::consts::PI, ..LedConfig::default() },
+        );
+        let (face_a, face_b) = faces.render(0.0, 0.0, LedMode::RutgersLogo, 0, &mut SolidArtwork);
+        assert_eq!(face_a.pixels[0], Rgb::VIRTUAL_FRONT);
+        assert_eq!(face_b.pixels[4], Rgb::VIRTUAL_FRONT);
+        assert_eq!(face_a.pixels[1], Rgb::new(1, 2, 3));
+    }
+
+    #[test]
+    fn invalid_phase_fails_dark_instead_of_showing_unmarked_artwork() {
+        let display = LedDisplay::<4>::new(LedConfig::default());
+        let artwork = [Rgb::new(1, 2, 3); 4];
+        assert_eq!(display.render(f32::NAN, &artwork), LedFrame::black());
+    }
+
+    #[test]
+    fn virtual_front_marker_tracks_fixed_heading_as_body_rotates() {
+        let display = LedDisplay::<8>::new(LedConfig { marker_width: 1, ..LedConfig::default() });
+        let artwork = [Rgb::BLACK; 8];
+        let frame = display.render_virtual_front(core::f32::consts::FRAC_PI_2, 0.0, &artwork);
+        assert_eq!(frame.pixels[6], Rgb::VIRTUAL_FRONT);
+    }
+
+    #[test]
     fn encodes_start_pixels_and_end_frame() {
         let frame = LedFrame { pixels: [Rgb::new(1, 2, 3); 2] };
-        let mut bytes = [0u8; 10];
-        assert_eq!(frame.encode_sk9822(16, &mut bytes).unwrap(), 10);
+        let mut bytes = [0u8; 13];
+        assert_eq!(frame.encode_sk9822(16, &mut bytes).unwrap(), 13);
         assert_eq!(&bytes[..4], &[0, 0, 0, 0]);
         assert_eq!(&bytes[4..8], &[0xF0, 3, 2, 1]);
-        assert_eq!(&bytes[8..], &[0xFF, 0xFF]);
+        assert_eq!(&bytes[12..], &[0xFF]);
     }
 }
