@@ -141,10 +141,13 @@ mod tests {
         }
         robot.feedback = RobotFeedback { state: RobotState::Disarmed, spin_rpm: 0.0, phase_rad: 0.25, spin_valid: true };
         firmware.tick(10_001, &mut robot).unwrap();
+        // The firmware uses previous-tick feedback for mapping, so give the
+        // valid stopped phase one complete tick to reach its mapper.
+        firmware.tick(10_002, &mut robot).unwrap();
         for byte in ibus_frame(true) {
-            firmware.push_receiver_byte(byte, 10_002);
+            firmware.push_receiver_byte(byte, 10_003);
         }
-        let tick = firmware.tick(10_003, &mut robot).unwrap();
+        let tick = firmware.tick(10_004, &mut robot).unwrap();
         let command = robot.command.unwrap();
         assert!(command.enable);
         assert_eq!(command.target_rpm, 2250.0);
@@ -160,14 +163,15 @@ mod tests {
             firmware.push_receiver_byte(byte, 10_000);
         }
         firmware.tick(10_001, &mut robot).unwrap();
+        firmware.tick(10_002, &mut robot).unwrap();
         for byte in ibus_frame(true) {
-            firmware.push_receiver_byte(byte, 10_002);
+            firmware.push_receiver_byte(byte, 10_003);
         }
         robot.feedback.state = RobotState::Running;
         robot.feedback.spin_rpm = 1000.0;
-        firmware.tick(10_003, &mut robot).unwrap();
+        firmware.tick(10_004, &mut robot).unwrap();
         firmware.receiver_io_error();
-        let tick = firmware.tick(10_002, &mut robot).unwrap();
+        let tick = firmware.tick(10_005, &mut robot).unwrap();
         assert_eq!(tick.controls.failsafe, crate::FailsafeState::Active(crate::FailsafeReason::NoFrame));
         assert!(robot.command.unwrap().stop);
         assert!(firmware.latest_frame().is_none());
