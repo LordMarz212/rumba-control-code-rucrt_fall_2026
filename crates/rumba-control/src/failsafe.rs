@@ -10,6 +10,7 @@ pub enum FailsafeReason {
     MissingRequiredChannel,
     InvalidChannelValue,
     InvalidConfiguration,
+    InvalidControllerPhase,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
