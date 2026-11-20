@@ -17,6 +17,10 @@ The default software channel map assumes common AETR channel order: CH1 right X,
 
 The LED strip marks the chosen virtual front. The driver uses that light marker as the reference for directional input while the robot is spinning. Both faces display the same logical marker. Decorative effects are drawn underneath the marker and must never obscure it.
 
+The current control profile maps the RadioMaster Zorro's left stick vertical axis to spin target, the right stick X/Y axes to translation relative to the virtual front, and one configurable two-position switch to spin enable. The mapper's defaults use common iBUS AETR channel ordering; verify channel order and switch channel against the actual receiver before flight. Driver translation is transformed into the arena-coordinate vector that robosim consumes. Additional switches are unassigned unless explicitly configured; optional bindings select LED artwork modes only.
+
+Alignment is captured with the enable switch OFF when robosim reports a valid stopped phase. If the robot has not established that phase, the mapper keeps it disarmed and refuses spin enable. Returning from receiver loss also requires the enable switch to be cycled OFF before re-arming.
+
 ## Safety behavior
 
 Turning the enable toggle OFF requests a controlled stop through the existing robot controller. If receiver packets stop or become invalid, the control layer also requests a controlled stop. After radio link recovery, the enable switch must be moved OFF before the system will accept ON again.
