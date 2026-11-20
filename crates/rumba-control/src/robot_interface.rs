@@ -73,6 +73,8 @@ pub struct RobotFeedback {
     pub spin_rpm: f32,
     /// Current estimated body phase in the arena frame, in radians.
     pub phase_rad: f32,
+    /// True only when the controller has a valid measured spin estimate.
+    pub spin_valid: bool,
 }
 
 impl RobotFeedback {
