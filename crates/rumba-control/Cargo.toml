@@ -13,5 +13,5 @@ default = ["robosim"]
 robosim = ["dep:control-core"]
 
 [dependencies]
-control-core = { package = "control-core", git = "https://github.com/ARandomNeko/robosim.git", rev = "310e6abd580e5b333639d49f2bb6f9d772a384ef", optional = true }
+control-core = { path = "../control-core", optional = true }
 libm = "0.2"
